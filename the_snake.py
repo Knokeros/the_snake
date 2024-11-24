@@ -3,7 +3,6 @@
 при столкновение со своим телом игра заканчивается.
 """
 from random import choice, randint
-
 import pygame as pg
 
 # Константы для размеров поля и сетки:
@@ -46,10 +45,14 @@ clock = pg.time.Clock()
 class GameObject:
     """Базовый класс."""
 
-    def init(self, color=None):
+    def __init__(self, color=None):
         """Устанавливаем стартовую позицию в центре экрана."""
-        self.position = ((SCREEN_WIDTH // 2), (SCREEN_HEIGHT // 2))
+        self.position = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
         self.body_color = color
+
+    def draw(self):
+        """Отрисовка объекта."""
+        self.draw_cell(self.position, self.body_color)
 
     def draw_cell(self, position=None, color=None):
         """Рисуем одну ячейку на поле."""
@@ -64,9 +67,11 @@ class GameObject:
 class Apple(GameObject):
     """Класс яблоко."""
 
-    def init(self, taked_positions, color=APPLE_COLOR):
+    def __init__(self, taked_positions=None, color=APPLE_COLOR):
         """Инициализация яблока с параметрами занятых клеток и цвета."""
-        super().init(color)
+        super().__init__(color)
+        if taked_positions is None:
+            taked_positions = set()
         self.randomize_position(taked_positions)
 
     def randomize_position(self, taked_positions):
@@ -78,19 +83,15 @@ class Apple(GameObject):
                 self.position = new_position
                 break
 
-    def draw(self):
-        """Метод рисования яблока."""
-        self.draw_cell()
-
 
 class Snake(GameObject):
     """Класс змейка."""
 
-    def init(self, color=SNAKE_COLOR):
+    def __init__(self, color=SNAKE_COLOR):
         """Инициализация змейки с параметром цвета."""
-        super().init(color)
-        self.position = ((SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2),)
-        self.length = 2
+        super().__init__(color)
+        self.positions = [(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)]
+        self.length = 1
         self.direction = choice([UP, DOWN, LEFT, RIGHT])
         self.next_direction = self.direction
 
@@ -102,20 +103,20 @@ class Snake(GameObject):
                     (head_y + dy * GRID_SIZE) % SCREEN_HEIGHT)
 
         # Добавляем новую голову
-        self.position = (new_head,) + self.position
+        self.positions.insert(0, new_head)
 
         # Удаление последнего сегмента, если не съела
-        if len(self.position) > self.length:
-            self.position = self.position[:-1]
+        if len(self.positions) > self.length:
+            self.positions.pop()
 
     def get_head_position(self):
         """Возвращает текущую позицию головы змейки."""
-        return self.position[0]
+        return self.positions[0]
 
     def reset(self):
         """Метод сброса позиции змейки."""
-        self.length = 2
-        self.position = ((SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2),)
+        self.length = 1
+        self.positions = [(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)]
         self.direction = choice([UP, DOWN, LEFT, RIGHT])
 
     def update_direction(self):
@@ -124,15 +125,14 @@ class Snake(GameObject):
 
     def draw(self):
         """Метод рисования змейки."""
-        for position in self.position[:-1]:
+        for position in self.positions:
             self.draw_cell(position)
-        self.draw_cell(self.position[0])
 
 
 def collisions(snake):
     """Обработка столкновений."""
     head_position = snake.get_head_position()
-    if head_position in snake.position[1:]:
+    if head_position in snake.positions[1:]:
         snake.reset()
 
 
@@ -159,9 +159,7 @@ def main():
     pg.init()
     # Создание объектов
     snake = Snake()
-    snake.init()
-    apple = Apple()
-    apple.init(set(snake.position))
+    apple = Apple(set(snake.positions))
 
     # Основная логика игры
     while True:
@@ -183,7 +181,7 @@ def main():
         # Проверка на съеденное яблоко
         if snake.get_head_position() == apple.position:
             snake.length += 1
-            apple.randomize_position(set(snake.position))
+            apple.randomize_position(set(snake.positions))
 
         # Рисуем объекты
         apple.draw()
