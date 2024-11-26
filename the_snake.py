@@ -1,6 +1,7 @@
 """
-Реализуем игру змейка, которая растет при поедание яблока,
-при столкновение со своим телом игра заканчивается.
+Игра змейка.
+Змея растет при поедание яблока.
+При столкновение со своим телом игра заканчивается.
 """
 from random import choice, randint
 import pygame as pg
@@ -41,6 +42,24 @@ pg.display.set_caption('Змейка')
 # Настройка времени:
 clock = pg.time.Clock()
 
+# Константы клавиш:
+KEY_UP = pg.K_UP
+KEY_DOWN = pg.K_DOWN
+KEY_LEFT = pg.K_LEFT
+KEY_RIGHT = pg.K_RIGHT
+
+# Словарь направлений:
+DIRECTION_MAP = {
+    (KEY_UP, LEFT): UP,
+    (KEY_UP, RIGHT): UP,
+    (KEY_DOWN, LEFT): DOWN,
+    (KEY_DOWN, RIGHT): DOWN,
+    (KEY_LEFT, UP): LEFT,
+    (KEY_LEFT, DOWN): LEFT,
+    (KEY_RIGHT, UP): RIGHT,
+    (KEY_RIGHT, DOWN): RIGHT,
+}
+
 
 class GameObject:
     """Базовый класс."""
@@ -51,8 +70,7 @@ class GameObject:
         self.body_color = color
 
     def draw(self):
-        """Отрисовка объекта."""
-        self.draw_cell(self.position, self.body_color)
+        """Отрисовка объектов реализованая в дочерних классах."""
 
     def draw_cell(self, position=None, color=None):
         """Рисуем одну ячейку на поле."""
@@ -67,14 +85,12 @@ class GameObject:
 class Apple(GameObject):
     """Класс яблоко."""
 
-    def __init__(self, taked_positions=None, color=APPLE_COLOR):
+    def __init__(self, taked_positions=(), color=APPLE_COLOR):
         """Инициализация яблока с параметрами занятых клеток и цвета."""
         super().__init__(color)
-        if taked_positions is None:
-            taked_positions = set()
         self.randomize_position(taked_positions)
 
-    def randomize_position(self, taked_positions):
+    def randomize_position(self, taked_positions=()):
         """Устанавливаем яблоко в случайную точку."""
         while True:
             new_position = (randint(0, GRID_WIDTH - 1) * GRID_SIZE,
@@ -83,6 +99,10 @@ class Apple(GameObject):
                 self.position = new_position
                 break
 
+    def draw(self):
+        """Отрисовка яблока."""
+        self.draw_cell(self.position, self.body_color)
+
 
 class Snake(GameObject):
     """Класс змейка."""
@@ -90,10 +110,7 @@ class Snake(GameObject):
     def __init__(self, color=SNAKE_COLOR):
         """Инициализация змейки с параметром цвета."""
         super().__init__(color)
-        self.positions = [(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)]
-        self.length = 1
-        self.direction = choice([UP, DOWN, LEFT, RIGHT])
-        self.next_direction = self.direction
+        self.reset()
 
     def move(self):
         """Метод движения змейки."""
@@ -115,9 +132,10 @@ class Snake(GameObject):
 
     def reset(self):
         """Метод сброса позиции змейки."""
-        self.length = 1
         self.positions = [(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)]
-        self.direction = choice([UP, DOWN, LEFT, RIGHT])
+        self.length = 1
+        self.direction = choice((UP, DOWN, LEFT, RIGHT))
+        self.next_direction = self.direction
 
     def update_direction(self):
         """Обновляет направление движения."""
@@ -129,28 +147,28 @@ class Snake(GameObject):
             self.draw_cell(position)
 
 
-def collisions(snake):
+def collisions(snake, apple):
     """Обработка столкновений."""
     head_position = snake.get_head_position()
     if head_position in snake.positions[1:]:
         snake.reset()
+        apple.randomize_position(tuple(snake.positions))
+
+    if head_position == apple.position:
+        snake.length += 1
+        apple.randomize_position(tuple(snake.positions))
 
 
-def handle_keys(game_object):
-    """Функция обработки действий пользователя."""
+def handle_keys(snake):
+    """Обработка действий пользователя."""
     for event in pg.event.get():
         if event.type == pg.QUIT:
             pg.quit()
-            raise SystemExit
-        elif event.type == pg.KEYDOWN:
-            if event.key == pg.K_UP and game_object.direction != DOWN:
-                game_object.next_direction = UP
-            elif event.key == pg.K_DOWN and game_object.direction != UP:
-                game_object.next_direction = DOWN
-            elif event.key == pg.K_LEFT and game_object.direction != RIGHT:
-                game_object.next_direction = LEFT
-            elif event.key == pg.K_RIGHT and game_object.direction != LEFT:
-                game_object.next_direction = RIGHT
+            raise SystemExit('Game Over')
+        if event.type == pg.KEYDOWN:
+            new_direction = DIRECTION_MAP.get(
+                (event.key, snake.direction), snake.direction)
+            snake.next_direction = new_direction
 
 
 def main():
@@ -159,7 +177,7 @@ def main():
     pg.init()
     # Создание объектов
     snake = Snake()
-    apple = Apple(set(snake.positions))
+    apple = Apple(tuple(snake.positions))
 
     # Основная логика игры
     while True:
@@ -176,12 +194,7 @@ def main():
         snake.move()
 
         # Проверка столкновений
-        collisions(snake)
-
-        # Проверка на съеденное яблоко
-        if snake.get_head_position() == apple.position:
-            snake.length += 1
-            apple.randomize_position(set(snake.positions))
+        collisions(snake, apple)
 
         # Рисуем объекты
         apple.draw()
